@@ -1,0 +1,89 @@
+name: Publish GHCR Image
+
+on:
+  workflow_run:
+    workflows:
+      - Publish NPM Package
+    types:
+      - completed
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: Read package version
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="$(node -p 'require("./package.json").version')"
+          echo "version=${PACKAGE_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Wait for npm package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="${{ steps.package.outputs.version }}"
+          for attempt in $(seq 1 12); do
+            PUBLISHED_VERSION="$(npm view @jobmatchme/bee-slack version 2>/dev/null || true)"
+            if [ "${PUBLISHED_VERSION}" = "${PACKAGE_VERSION}" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Expected @jobmatchme/bee-slack@${PACKAGE_VERSION} to be visible on npm before building the GHCR image."
+          exit 1
+
+      - name: Lowercase repository owner
+        id: owner
+        shell: bash
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/bee-slack
+          tags: |
+            type=raw,value=${{ steps.package.outputs.version }}
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            BEE_SLACK_PACKAGE=@jobmatchme/bee-slack@${{ steps.package.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
