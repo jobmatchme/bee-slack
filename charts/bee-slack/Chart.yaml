@@ -2,5 +2,8 @@ apiVersion: v2
 name: bee-slack
 description: Helm chart for a bee-slack deployment
 type: application
+home: https://github.com/jobmatchme/bee-slack
+sources:
+  - https://github.com/jobmatchme/bee-slack
 version: 0.1.4
 appVersion: "0.1.4"

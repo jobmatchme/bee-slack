@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.6
 FROM node:20-alpine
 
+LABEL org.opencontainers.image.source="https://github.com/jobmatchme/bee-slack"
+
 ARG BEE_SLACK_PACKAGE=@jobmatchme/bee-slack
 
 RUN apk add --no-cache \
