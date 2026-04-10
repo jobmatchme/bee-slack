@@ -1,0 +1,6 @@
+apiVersion: v2
+name: bee-slack
+description: Helm chart for a bee-slack deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.3"

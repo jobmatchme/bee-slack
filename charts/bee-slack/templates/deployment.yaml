@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bee-slack.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.pod.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "bee-slack.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "bee-slack.name" . }}
+        ai.jobmatch.me/external-egress: {{ ternary "true" "false" .Values.pod.externalEgress | quote }}
+        {{- with .Values.agent.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.pullSecretName }}
+      imagePullSecrets:
+        - name: {{ . }}
+      {{- end }}
+      securityContext:
+        fsGroup: {{ .Values.pod.fsGroup }}
+      containers:
+        - name: {{ include "bee-slack.containerName" . }}
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.secretName }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          {{- end }}
+          env:
+            - name: BEE_SLACK_CONFIG
+              value: {{ include "bee-slack.configFilePath" . | quote }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: {{ .Values.container.readOnlyRootFilesystem }}
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: gateway-config
+              mountPath: {{ .Values.config.mountPath }}
+              readOnly: true
+            {{- if .Values.workspace.enabled }}
+            - name: workspace
+              mountPath: {{ .Values.workspace.mountPath }}
+            {{- end }}
+      volumes:
+        - name: gateway-config
+          secret:
+            secretName: {{ include "bee-slack.configSecretName" . }}
+        {{- if .Values.workspace.enabled }}
+        - name: workspace
+          emptyDir:
+            {{- toYaml .Values.workspace.emptyDir | nindent 12 }}
+        {{- end }}

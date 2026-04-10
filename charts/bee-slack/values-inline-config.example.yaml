@@ -1,0 +1,21 @@
+image:
+  repository: ghcr.io/jobmatchme/bee-slack
+  tag: "0.1.3"
+
+config:
+  create: true
+  appToken: xapp-REPLACE_ME
+  botToken: xoxb-REPLACE_ME
+  nats:
+    servers:
+      - nats://nats.nats.svc.cluster.local:4222
+    name: bee-slack
+  routes:
+    - id: dm-test
+      match:
+        dm: true
+      worker:
+        subject: bee.agent.test
+      session:
+        strategy: thread
+        prefix: bee

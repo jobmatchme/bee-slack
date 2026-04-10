@@ -45,6 +45,60 @@ then launches `bee-slack` against that local stack.
 The package is intended for public npm publication from GitHub Actions using npm
 Trusted Publishing via GitHub OIDC.
 
+Container images are published to GHCR from GitHub Actions on version tags. The
+image entrypoint expects a mounted JSON config file and runs:
+
+```bash
+bee-slack /config/config.json
+```
+
+## Container image
+
+Build the container locally with:
+
+```bash
+docker build -t bee-slack:local .
+```
+
+Run it with a mounted config file:
+
+```bash
+docker run --rm \
+  -v "$(pwd)/local.config.json:/config/config.json:ro" \
+  bee-slack:local
+```
+
+## Kubernetes
+
+A reusable Helm chart is included under
+[`charts/bee-slack`](./charts/bee-slack). The chart supports either:
+
+- mounting an existing Secret that contains `config.json`
+- creating the config Secret from values at install time
+
+The chart mounts `/workspace` as an ephemeral `emptyDir`. That is enough for
+the local blob store used for Slack attachments and generated artifacts, but
+those files are intentionally not persisted across pod restarts or recreations.
+
+Example values files for both secret-handling modes are included under:
+
+- [`charts/bee-slack/values-existing-secret.example.yaml`](./charts/bee-slack/values-existing-secret.example.yaml)
+- [`charts/bee-slack/values-inline-config.example.yaml`](./charts/bee-slack/values-inline-config.example.yaml)
+
+Example install using an existing Secret:
+
+```bash
+helm upgrade --install bee-slack ./charts/bee-slack \
+  --namespace ai-agents \
+  --create-namespace \
+  --set config.existingSecretName=bee-slack-config \
+  --set image.repository=ghcr.io/jobmatchme/bee-slack \
+  --set image.tag=0.1.3
+```
+
+The mounted config file must contain the same structure as
+`local.config.example.json`.
+
 ## License
 
 MIT

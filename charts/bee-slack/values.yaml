@@ -1,0 +1,39 @@
+agent:
+  name: bee-slack
+  labels: {}
+
+image:
+  repository: ghcr.io/jobmatchme/bee-slack
+  tag: "0.1.3"
+  pullPolicy: IfNotPresent
+  pullSecretName: ""
+
+secretName: ""
+
+workspace:
+  enabled: true
+  mountPath: /workspace
+  emptyDir: {}
+
+config:
+  create: false
+  existingSecretName: ""
+  secretName: ""
+  mountPath: /config
+  fileName: config.json
+  appToken: ""
+  botToken: ""
+  nats:
+    servers:
+      - nats://nats.nats.svc.cluster.local:4222
+    name: bee-slack
+  routes: []
+
+pod:
+  replicas: 1
+  externalEgress: true
+  fsGroup: 10001
+
+container:
+  name: ""
+  readOnlyRootFilesystem: false
