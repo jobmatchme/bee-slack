@@ -93,7 +93,7 @@ helm upgrade --install bee-slack ./charts/bee-slack \
   --create-namespace \
   --set config.existingSecretName=bee-slack-config \
   --set image.repository=ghcr.io/jobmatchme/bee-slack \
-  --set image.tag=0.1.3
+  --set image.tag=0.1.4
 ```
 
 The mounted config file must contain the same structure as
