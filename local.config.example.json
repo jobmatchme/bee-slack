@@ -1,0 +1,36 @@
+{
+	"appToken": "xapp-REPLACE_ME",
+	"botToken": "xoxb-REPLACE_ME",
+	"nats": {
+		"servers": "nats://127.0.0.1:4222",
+		"name": "bee-slack-local"
+	},
+	"routes": [
+		{
+			"id": "dm-test",
+			"match": {
+				"dm": true
+			},
+			"worker": {
+				"subject": "bee.agent.test"
+			},
+			"session": {
+				"strategy": "thread",
+				"prefix": "bee"
+			}
+		},
+		{
+			"id": "mention-test",
+			"match": {
+				"channelNames": ["sandbox"]
+			},
+			"worker": {
+				"subject": "bee.agent.test"
+			},
+			"session": {
+				"strategy": "thread",
+				"prefix": "bee"
+			}
+		}
+	]
+}

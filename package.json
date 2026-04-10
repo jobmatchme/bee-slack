@@ -1,0 +1,73 @@
+{
+	"name": "@jobmatchme/bee-slack",
+	"version": "0.1.2",
+	"description": "Slack adapter for Bee Gate and the Bee Dance protocol",
+	"type": "module",
+	"bin": {
+		"bee-slack": "dist/main.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"homepage": "https://github.com/jobmatchme/bee-slack",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/jobmatchme/bee-slack.git"
+	},
+	"bugs": {
+		"url": "https://github.com/jobmatchme/bee-slack/issues"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
+	"keywords": [
+		"slack",
+		"agents",
+		"gateway",
+		"protocol",
+		"nats"
+	],
+	"files": [
+		"dist",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf coverage dist",
+		"build": "tsgo -p tsconfig.build.json && shx chmod +x dist/main.js",
+		"dev": "tsgo -p tsconfig.build.json --watch --preserveWatchOutput",
+		"start:local": "zsh ./scripts/start-local-stack.sh",
+		"lint": "biome check --error-on-warnings .",
+		"lint:fix": "biome check --write --error-on-warnings .",
+		"format": "biome format --write .",
+		"typecheck": "tsgo --noEmit -p tsconfig.json",
+		"test": "vitest run --coverage",
+		"test:watch": "vitest",
+		"check": "biome check --write --error-on-warnings . && tsgo --noEmit -p tsconfig.json && vitest run --coverage && npm run build",
+		"prepare": "husky",
+		"prepublishOnly": "npm run clean && npm run check"
+	},
+	"dependencies": {
+		"@jobmatchme/bee-gate": "0.1.7",
+		"@slack/socket-mode": "^2.0.0",
+		"@slack/web-api": "^7.11.0",
+		"chalk": "^5.6.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.5",
+		"@typescript/native-preview": "7.0.0-dev.20260120.1",
+		"@types/node": "^24.3.0",
+		"@vitest/coverage-v8": "^3.2.4",
+		"husky": "^9.1.7",
+		"shx": "^0.4.0",
+		"typescript": "^5.7.3",
+		"vitest": "^3.2.4"
+	},
+	"optionalDependencies": {
+		"@typescript/native-preview-linux-arm64": "7.0.0-dev.20260120.1"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"license": "MIT"
+}
