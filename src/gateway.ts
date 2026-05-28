@@ -12,6 +12,7 @@ import {
 } from "@jobmatchme/bee-gate";
 import { SocketModeClient } from "@slack/socket-mode";
 import { WebClient } from "@slack/web-api";
+import { createReadStream } from "fs";
 import { join } from "path";
 import { loadConfig } from "./config.js";
 import * as log from "./log.js";
@@ -70,7 +71,7 @@ class SlackSink implements TransportSink<string> {
 			await (this.webClient.files as any).uploadV2({
 				channel_id: target.channelId,
 				thread_ts: target.threadId,
-				file: materialized.path,
+				file: createReadStream(materialized.path),
 				filename: materialized.filename,
 				title: artifact.title || artifact.name || materialized.filename,
 			});

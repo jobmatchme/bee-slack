@@ -93,11 +93,16 @@ helm upgrade --install bee-slack ./charts/bee-slack \
   --create-namespace \
   --set config.existingSecretName=bee-slack-config \
   --set image.repository=ghcr.io/jobmatchme/bee-slack \
-  --set image.tag=0.1.4
+  --set image.tag=0.1.6
 ```
 
 The mounted config file must contain the same structure as
 `local.config.example.json`.
+
+Release order matters for changes in the shared gateway runtime: publish the
+referenced `@jobmatchme/bee-gate` version first, then tag and publish
+`bee-slack` so the npm package, GHCR image, and OCI Helm chart resolve the same
+runtime.
 
 ## License
 
