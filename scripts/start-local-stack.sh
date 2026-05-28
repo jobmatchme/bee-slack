@@ -10,12 +10,14 @@ GATE_TEST_DIR="${REPO_ROOT}/bee-gate-test"
 CONFIG_PATH="${BEE_SLACK_CONFIG:-${SLACK_DIR}/local.config.json}"
 NATS_CONTAINER_NAME="${BEE_LOCAL_NATS_CONTAINER_NAME:-bee-local-nats}"
 NATS_URL="${BEE_LOCAL_NATS_URL:-nats://127.0.0.1:4222}"
+NATS_MAX_PAYLOAD="${BEE_LOCAL_NATS_MAX_PAYLOAD:-8MB}"
 WORKER_SUBJECT="${BEE_GATE_TEST_SUBJECT:-bee.agent.test}"
 NATS_HOST="${NATS_URL#nats://}"
 NATS_HOST="${NATS_HOST%%:*}"
 NATS_PORT="${NATS_URL##*:}"
 
 started_nats=0
+nats_config_file=""
 bee_gate_test_pid=""
 
 cleanup() {
@@ -26,6 +28,10 @@ cleanup() {
 
 	if [[ "${started_nats}" -eq 1 ]]; then
 		docker rm -f "${NATS_CONTAINER_NAME}" >/dev/null 2>&1 || true
+	fi
+
+	if [[ -n "${nats_config_file}" ]]; then
+		rm -f "${nats_config_file}" >/dev/null 2>&1 || true
 	fi
 }
 
@@ -51,9 +57,16 @@ else
 		if docker ps -a --format '{{.Names}}' | grep -qx "${NATS_CONTAINER_NAME}"; then
 			docker rm -f "${NATS_CONTAINER_NAME}" >/dev/null 2>&1 || true
 		fi
-		docker run -d --rm --name "${NATS_CONTAINER_NAME}" -p "${NATS_PORT}:4222" nats:2 >/dev/null
+		nats_config_file="$(mktemp)"
+		cat >"${nats_config_file}" <<EOF
+listen: 0.0.0.0:4222
+max_payload: ${NATS_MAX_PAYLOAD}
+EOF
+		docker run -d --rm --name "${NATS_CONTAINER_NAME}" -p "${NATS_PORT}:4222" \
+			-v "${nats_config_file}:/etc/nats/nats.conf:ro" \
+			nats:2 -c /etc/nats/nats.conf >/dev/null
 		started_nats=1
-		echo "Started local NATS broker in container ${NATS_CONTAINER_NAME}"
+		echo "Started local NATS broker in container ${NATS_CONTAINER_NAME} with max_payload ${NATS_MAX_PAYLOAD}"
 	fi
 fi
 

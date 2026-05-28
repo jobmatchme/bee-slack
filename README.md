@@ -38,7 +38,9 @@ npm run start:local
 ```
 
 This starts a local NATS broker via Docker, starts the local fake backend, and
-then launches `bee-slack` against that local stack.
+then launches `bee-slack` against that local stack. The local broker defaults to
+`max_payload: 8MB` for inline artifact testing; override with
+`BEE_LOCAL_NATS_MAX_PAYLOAD` if needed.
 
 ## Publishing
 
