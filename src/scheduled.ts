@@ -40,6 +40,7 @@ export interface SlackScheduledRunConfig {
 interface RenderState {
 	statusRef?: string;
 	latestText: string;
+	requestText?: string;
 	itemTexts: Map<string, string>;
 }
 
@@ -110,11 +111,10 @@ export async function runScheduledSlackTurn(
 		const teamId = String(auth.team_id || "unknown-team");
 		const output = await resolveScheduledOutputTarget(webClient, scheduledRun);
 		const actor = await resolveScheduledActor(webClient, scheduledRun);
+		let statusRef: string | undefined;
 		if (!output.threadId) {
-			output.threadId = await sink.postMessage(
-				{ channelId: output.channelId },
-				`:alarm_clock: Scheduled Bee run \`${scheduledRun.id}\` started. Reply in this thread to continue the session.`,
-			);
+			statusRef = await sink.postMessage({ channelId: output.channelId }, "_Working..._");
+			output.threadId = statusRef;
 		}
 		const slackConversationId = buildConversationId([
 			"slack",
@@ -148,7 +148,7 @@ export async function runScheduledSlackTurn(
 		};
 
 		log.logInfo(`Starting scheduled Slack run ${scheduledRun.id} on route ${route.id}`);
-		await streamScheduledTurn(workerClient, sink, input);
+		await streamScheduledTurn(workerClient, sink, input, statusRef);
 		log.logInfo(`Completed scheduled Slack run ${scheduledRun.id}`);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -222,9 +222,12 @@ async function streamScheduledTurn(
 	workerClient: BeeWorkerClient,
 	sink: SlackSink,
 	input: BeeResolvedTurn,
+	statusRef?: string,
 ): Promise<void> {
 	const state: RenderState = {
+		statusRef,
 		latestText: "_Working..._",
+		requestText: input.message.text,
 		itemTexts: new Map<string, string>(),
 	};
 	const request = {
@@ -255,7 +258,9 @@ async function handleScheduledEvent(
 	state: RenderState,
 ): Promise<void> {
 	if (event.name === "run.started") {
-		state.statusRef = await sink.postMessage(output, state.latestText);
+		if (!state.statusRef) {
+			state.statusRef = await sink.postMessage(output, state.latestText);
+		}
 		return;
 	}
 
@@ -300,11 +305,11 @@ async function handleScheduledEvent(
 			await sink.postMessage(output, text);
 			return;
 		}
-		state.latestText = text;
+		state.latestText = renderScheduledFinalMessage(state.requestText, text);
 		if (state.statusRef) {
-			await sink.updateMessage(output, state.statusRef, text);
+			await sink.updateMessage(output, state.statusRef, state.latestText);
 		} else {
-			state.statusRef = await sink.postMessage(output, text);
+			state.statusRef = await sink.postMessage(output, state.latestText);
 		}
 		return;
 	}
@@ -315,11 +320,11 @@ async function handleScheduledEvent(
 		const appended = renderParts(payload.appendParts || []);
 		const next = current ? `${current}${appended}` : appended;
 		state.itemTexts.set(payload.itemId, next);
-		state.latestText = next;
+		state.latestText = renderScheduledFinalMessage(state.requestText, next);
 		if (state.statusRef) {
-			await sink.updateMessage(output, state.statusRef, next);
+			await sink.updateMessage(output, state.statusRef, state.latestText);
 		} else {
-			state.statusRef = await sink.postMessage(output, next);
+			state.statusRef = await sink.postMessage(output, state.latestText);
 		}
 	}
 }
@@ -340,6 +345,22 @@ function firstArtifactRef(parts: ItemPartLike[]): ArtifactRef | undefined {
 
 function artifactHasPayload(artifact: ArtifactRef): boolean {
 	return !!(artifact.uri || artifact.blobKey);
+}
+
+export function renderScheduledFinalMessage(requestText: string | undefined, responseText: string): string {
+	const request = requestText?.trim();
+	if (!request) return responseText;
+
+	const quotedRequest = request
+		.split(/\r?\n/)
+		.map((line) => `> ${escapeSlackText(line)}`)
+		.join("\n");
+
+	return ["*Request:*", quotedRequest, "*Antwort:*", responseText].filter(Boolean).join("\n\n");
+}
+
+function escapeSlackText(text: string): string {
+	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function renderParts(parts: ItemPartLike[]): string {
