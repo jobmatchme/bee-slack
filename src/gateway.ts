@@ -1,5 +1,4 @@
 import {
-	type ArtifactRef,
 	type AttachmentRef,
 	BeeGatewayEngine,
 	type BeeResolvedTurn,
@@ -8,15 +7,14 @@ import {
 	createNatsBeeClient,
 	LocalFileBlobStore,
 	type TransportOutputTarget,
-	type TransportSink,
 } from "@jobmatchme/bee-gate";
 import { SocketModeClient } from "@slack/socket-mode";
 import { WebClient } from "@slack/web-api";
-import { createReadStream } from "fs";
 import { join } from "path";
 import { loadConfig } from "./config.js";
 import * as log from "./log.js";
 import { resolveRoute } from "./router.js";
+import { SlackSink } from "./slack-sink.js";
 import type { ResolvedSlackRoute, SlackFile, SlackGatewayConfig, SlackInboundMessage } from "./types.js";
 
 interface SlackUser {
@@ -28,57 +26,6 @@ interface SlackUser {
 interface SlackChannel {
 	id: string;
 	name: string;
-}
-
-class SlackSink implements TransportSink<string> {
-	constructor(
-		private webClient: WebClient,
-		private blobStore: BlobStore,
-	) {}
-
-	async postMessage(target: TransportOutputTarget, text: string): Promise<string> {
-		if (!target.channelId) {
-			throw new Error("Missing Slack channel id");
-		}
-
-		const result = await this.webClient.chat.postMessage({
-			channel: target.channelId,
-			text,
-			thread_ts: target.threadId,
-		});
-		return result.ts as string;
-	}
-
-	async updateMessage(target: TransportOutputTarget, ref: string, text: string): Promise<void> {
-		if (!target.channelId) {
-			throw new Error("Missing Slack channel id");
-		}
-
-		await this.webClient.chat.update({
-			channel: target.channelId,
-			ts: ref,
-			text,
-		});
-	}
-
-	async publishArtifact(target: TransportOutputTarget, artifact: ArtifactRef): Promise<void> {
-		if (!target.channelId) {
-			throw new Error("Missing Slack channel id");
-		}
-
-		const materialized = await this.blobStore.materialize(artifact);
-		try {
-			await (this.webClient.files as any).uploadV2({
-				channel_id: target.channelId,
-				thread_ts: target.threadId,
-				file: createReadStream(materialized.path),
-				filename: materialized.filename,
-				title: artifact.title || artifact.name || materialized.filename,
-			});
-		} finally {
-			await materialized.cleanup?.();
-		}
-	}
 }
 
 export class SlackGateway {

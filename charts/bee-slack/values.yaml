@@ -37,3 +37,20 @@ pod:
 container:
   name: ""
   readOnlyRootFilesystem: false
+
+scheduledRuns: []
+# - name: daily-dbt-report
+#   enabled: true
+#   schedule: "0 8 * * *"
+#   timeZone: Europe/Berlin
+#   concurrencyPolicy: Forbid
+#   startingDeadlineSeconds: 1800
+#   successfulJobsHistoryLimit: 3
+#   failedJobsHistoryLimit: 5
+#   job:
+#     id: daily-dbt-report
+#     routeId: dm-test
+#     target:
+#       slackUserId: U1234567890
+#     text: |
+#       Erstelle den täglichen dbt Report und schreibe die Ergebnisse kompakt auf Deutsch.
