@@ -1,0 +1,111 @@
+{{- $root := . -}}
+{{- range $run := .Values.scheduledRuns }}
+{{- if or (not (hasKey $run "enabled")) $run.enabled }}
+{{- $name := include "bee-slack.scheduledRunName" (dict "root" $root "run" $run) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "bee-slack.name" $root }}
+    app.kubernetes.io/component: scheduled-run
+data:
+  job.json: |
+    {{- required (printf "scheduledRuns[%s].job is required" $run.name) $run.job | toPrettyJson | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "bee-slack.name" $root }}
+    app.kubernetes.io/component: scheduled-run
+spec:
+  schedule: {{ required (printf "scheduledRuns[%s].schedule is required" $run.name) $run.schedule | quote }}
+  {{- with $run.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: {{ default "Forbid" $run.concurrencyPolicy }}
+  {{- with $run.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  successfulJobsHistoryLimit: {{ default 3 $run.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ default 5 $run.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ default 1 $run.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: {{ include "bee-slack.name" $root }}
+            app.kubernetes.io/component: scheduled-run
+            ai.jobmatch.me/external-egress: {{ ternary "true" "false" $root.Values.pod.externalEgress | quote }}
+            {{- with $root.Values.agent.labels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        spec:
+          restartPolicy: Never
+          {{- with $root.Values.image.pullSecretName }}
+          imagePullSecrets:
+            - name: {{ . }}
+          {{- end }}
+          securityContext:
+            fsGroup: {{ $root.Values.pod.fsGroup }}
+          containers:
+            - name: {{ $name }}
+              image: {{ printf "%s:%s" $root.Values.image.repository $root.Values.image.tag }}
+              imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+              command:
+                - sh
+                - -lc
+              args:
+                - bee-slack run-scheduled {{ include "bee-slack.configFilePath" $root }} /scheduled/job.json
+              {{- if $root.Values.secretName }}
+              envFrom:
+                - secretRef:
+                    name: {{ $root.Values.secretName }}
+              {{- end }}
+              env:
+                - name: BEE_SLACK_CONFIG
+                  value: {{ include "bee-slack.configFilePath" $root | quote }}
+                - name: BEE_SLACK_SCHEDULED_RUN_CONFIG
+                  value: /scheduled/job.json
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: {{ $root.Values.container.readOnlyRootFilesystem }}
+                capabilities:
+                  drop:
+                    - ALL
+              {{- with $run.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - name: gateway-config
+                  mountPath: {{ $root.Values.config.mountPath }}
+                  readOnly: true
+                - name: scheduled-run-config
+                  mountPath: /scheduled
+                  readOnly: true
+                {{- if $root.Values.workspace.enabled }}
+                - name: workspace
+                  mountPath: {{ $root.Values.workspace.mountPath }}
+                {{- end }}
+          volumes:
+            - name: gateway-config
+              secret:
+                secretName: {{ include "bee-slack.configSecretName" $root }}
+            - name: scheduled-run-config
+              configMap:
+                name: {{ $name }}
+            {{- if $root.Values.workspace.enabled }}
+            - name: workspace
+              emptyDir:
+                {{- toYaml $root.Values.workspace.emptyDir | nindent 16 }}
+            {{- end }}
+---
+{{- end }}
+{{- end }}

@@ -19,3 +19,9 @@
 {{- define "bee-slack.configFilePath" -}}
 {{- printf "%s/%s" .Values.config.mountPath .Values.config.fileName -}}
 {{- end -}}
+
+{{- define "bee-slack.scheduledRunName" -}}
+{{- $root := index . "root" -}}
+{{- $run := index . "run" -}}
+{{- printf "%s-%s" (include "bee-slack.name" $root) (required "scheduledRuns[].name is required" $run.name) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}

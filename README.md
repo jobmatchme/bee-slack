@@ -101,6 +101,36 @@ helm upgrade --install bee-slack ./charts/bee-slack \
 The mounted config file must contain the same structure as
 `local.config.example.json`.
 
+### Scheduled Slack turns
+
+The same container can also run a one-shot scheduled turn. This is intended for
+Kubernetes `CronJob`s that should survive `bee-slack` or `fabee-pi-agent` pod
+restarts while triggering a Bee worker and publishing the result to Slack:
+
+```bash
+bee-slack run-scheduled /config/config.json /scheduled/job.json
+```
+
+Example `/scheduled/job.json`:
+
+```json
+{
+  "id": "daily-dbt-report",
+  "routeId": "dm-test",
+  "target": { "slackUserId": "U1234567890" },
+  "text": "Erstelle den täglichen dbt Report und schreibe die Ergebnisse kompakt auf Deutsch."
+}
+```
+
+`routeId` selects one of the configured Slack routes and therefore the Bee
+worker subject, for example `fabee.agent.pi.default`. For DM targets the command
+opens the Slack DM, streams the worker run, updates the Slack status message,
+and uploads inline artifacts when available.
+
+The Helm chart supports persistent cluster schedules via `scheduledRuns` values;
+each entry creates a Kubernetes `CronJob` plus a ConfigMap containing its
+one-shot job config.
+
 Release order matters for changes in the shared gateway runtime: publish the
 referenced `@jobmatchme/bee-gate` version first, then tag and publish
 `bee-slack` so the npm package, GHCR image, and OCI Helm chart resolve the same
