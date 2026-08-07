@@ -23,10 +23,28 @@ The package is intentionally thin. It owns Slack-specific concerns:
 - route matching
 - posting and updating Slack messages
 - uploading artifacts to Slack
+- public handoffs from trusted internal frontends into allowlisted Slack threads
 
 It does not own protocol orchestration itself. That responsibility stays in
 `@jobmatchme/bee-gate`, which keeps the Slack adapter replaceable and easier to
 compare against other frontends.
+
+## Grafana and other authenticated handoffs
+
+The optional handoff HTTP server lets a trusted internal frontend create a
+public Slack thread, dispatch the same question to an allowlisted Bee worker,
+return the Slack permalink immediately, and read the thread replies. The
+handoff route fixes both channel and worker server-side. Keep the Service
+cluster-internal and restrict ingress to the trusted frontend namespace. POST
+requests require Grafana's authenticated `X-Grafana-User` data-proxy header;
+the server replaces any browser-supplied actor identity with that value.
+
+```text
+GET  /health
+GET  /api/handoffs/routes
+POST /api/handoffs
+GET  /api/handoffs/:routeId/:threadTs/replies
+```
 
 ## Local development
 

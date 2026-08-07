@@ -4,7 +4,7 @@ agent:
 
 image:
   repository: ghcr.io/jobmatchme/bee-slack
-  tag: "0.1.6"
+  tag: "0.1.10"
   pullPolicy: IfNotPresent
   pullSecretName: ""
 
@@ -27,6 +27,13 @@ config:
     servers:
       - nats://nats.nats.svc.cluster.local:4222
     name: bee-slack
+  routes: []
+
+handoff:
+  enabled: false
+  host: 0.0.0.0
+  port: 8080
+  allowedDashboardHosts: []
   routes: []
 
 pod:

@@ -37,6 +37,22 @@ spec:
           env:
             - name: BEE_SLACK_CONFIG
               value: {{ include "bee-slack.configFilePath" . | quote }}
+            {{- if .Values.handoff.enabled }}
+            - name: BEE_SLACK_HANDOFF_CONFIG
+              value: {{ dict "enabled" true "host" .Values.handoff.host "port" .Values.handoff.port "allowedDashboardHosts" .Values.handoff.allowedDashboardHosts "routes" .Values.handoff.routes | toJson | quote }}
+            {{- end }}
+          {{- if .Values.handoff.enabled }}
+          ports:
+            - name: handoff
+              containerPort: {{ .Values.handoff.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: handoff
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- end }}
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -61,3 +77,19 @@ spec:
           emptyDir:
             {{- toYaml .Values.workspace.emptyDir | nindent 12 }}
         {{- end }}
+{{- if .Values.handoff.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "bee-slack.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "bee-slack.name" . }}
+  ports:
+    - name: handoff
+      port: {{ .Values.handoff.port }}
+      targetPort: handoff
+      protocol: TCP
+{{- end }}

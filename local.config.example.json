@@ -32,5 +32,20 @@
 				"prefix": "bee"
 			}
 		}
-	]
+	],
+	"handoff": {
+		"enabled": false,
+		"host": "127.0.0.1",
+		"port": 8080,
+		"allowedDashboardHosts": ["localhost"],
+		"routes": [
+			{
+				"id": "grafana-fabee",
+				"label": "#bee-test-fabi",
+				"channelId": "C1234567890",
+				"worker": { "subject": "bee.agent.test" },
+				"session": { "strategy": "thread", "prefix": "bee" }
+			}
+		]
+	}
 }
