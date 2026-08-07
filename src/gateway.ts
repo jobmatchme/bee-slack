@@ -12,6 +12,7 @@ import { SocketModeClient } from "@slack/socket-mode";
 import { WebClient } from "@slack/web-api";
 import { join } from "path";
 import { loadConfig } from "./config.js";
+import { createHandoffServer, SlackHandoffController } from "./handoff.js";
 import * as log from "./log.js";
 import { resolveRoute } from "./router.js";
 import { SlackSink } from "./slack-sink.js";
@@ -69,11 +70,52 @@ export class SlackGateway {
 		this.teamId = auth.team_id as string;
 		this.teamName = (auth.team as string | undefined) || null;
 		await Promise.all([this.fetchUsers(), this.fetchChannels()]);
+		this.startHandoffServer();
 		this.setupEventHandlers();
 		await this.socketClient.start();
 		log.logInfo(
 			`Connected as ${this.botUserId} in ${this.teamId}; loaded ${this.channels.size} channels and ${this.users.size} users`,
 		);
+	}
+
+	private startHandoffServer(): void {
+		const handoffConfig = this.config.handoff;
+		if (!handoffConfig?.enabled) return;
+		if (!this.teamId || !this.engine) throw new Error("Gateway must be initialized before handoff server startup");
+		const controller = new SlackHandoffController(handoffConfig, {
+			teamId: this.teamId,
+			postRootMessage: async (channelId, text) => this.sink.postMessage({ channelId }, text),
+			getPermalink: async (channelId, messageTs) => {
+				const result = await this.webClient.chat.getPermalink({ channel: channelId, message_ts: messageTs });
+				if (!result.permalink) throw new Error("Slack did not return a permalink");
+				return result.permalink;
+			},
+			dispatch: (input) => this.engine!.dispatch(input),
+			getReplies: async (channelId, threadTs) => {
+				const result = await this.webClient.conversations.replies({ channel: channelId, ts: threadTs, limit: 100 });
+				return (result.messages || []).map((message) => {
+					const typed = message as typeof message & {
+						bot_id?: string;
+						bot_profile?: { name?: string };
+						username?: string;
+						thread_ts?: string;
+					};
+					return {
+						ts: String(typed.ts || ""),
+						threadTs: typed.thread_ts,
+						text: typed.text || "",
+						author: typed.user
+							? this.users.get(typed.user)?.displayName || this.users.get(typed.user)?.userName || typed.user
+							: typed.bot_profile?.name || typed.username || "Bot",
+						isBot: Boolean(typed.bot_id),
+					};
+				});
+			},
+		});
+		const server = createHandoffServer(controller);
+		const host = handoffConfig.host || "0.0.0.0";
+		const port = handoffConfig.port || 8080;
+		server.listen(port, host, () => log.logInfo(`bee-slack handoff listening on http://${host}:${port}`));
 	}
 
 	private setupEventHandlers(): void {
