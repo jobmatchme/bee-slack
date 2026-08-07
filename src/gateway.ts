@@ -13,6 +13,7 @@ import { WebClient } from "@slack/web-api";
 import { join } from "path";
 import { loadConfig } from "./config.js";
 import { createHandoffServer, SlackHandoffController } from "./handoff.js";
+import { HandoffReplyCache } from "./handoff-reply-cache.js";
 import * as log from "./log.js";
 import { resolveRoute } from "./router.js";
 import { SlackSink } from "./slack-sink.js";
@@ -41,6 +42,8 @@ export class SlackGateway {
 	private sink: SlackSink;
 	private engine: BeeGatewayEngine<string> | null = null;
 	private workerClient: BeeWorkerClient | null = null;
+	private handoffReplyCache = new HandoffReplyCache();
+	private slackThreadHistoryUnavailable = false;
 
 	constructor(private config: SlackGatewayConfig) {
 		this.socketClient = new SocketModeClient({ appToken: config.appToken });
@@ -51,7 +54,10 @@ export class SlackGateway {
 				process.env.HUDAI_BLOB_STORE_ROOT ||
 				join(process.cwd(), ".bee-blob-store"),
 		);
-		this.sink = new SlackSink(this.webClient, this.blobStore);
+		this.sink = new SlackSink(this.webClient, this.blobStore, {
+			posted: (target, ref, text) => this.handoffReplyCache.recordPosted(target, ref, text, this.botDisplayName()),
+			updated: (target, ref, text) => this.handoffReplyCache.recordUpdated(target, ref, text, this.botDisplayName()),
+		});
 	}
 
 	async start(): Promise<void> {
@@ -92,30 +98,49 @@ export class SlackGateway {
 			},
 			dispatch: (input) => this.engine!.dispatch(input),
 			getReplies: async (channelId, threadTs) => {
-				const result = await this.webClient.conversations.replies({ channel: channelId, ts: threadTs, limit: 100 });
-				return (result.messages || []).map((message) => {
-					const typed = message as typeof message & {
-						bot_id?: string;
-						bot_profile?: { name?: string };
-						username?: string;
-						thread_ts?: string;
-					};
-					return {
-						ts: String(typed.ts || ""),
-						threadTs: typed.thread_ts,
-						text: typed.text || "",
-						author: typed.user
-							? this.users.get(typed.user)?.displayName || this.users.get(typed.user)?.userName || typed.user
-							: typed.bot_profile?.name || typed.username || "Bot",
-						isBot: Boolean(typed.bot_id),
-					};
-				});
+				if (this.slackThreadHistoryUnavailable) return this.handoffReplyCache.replies(channelId, threadTs);
+				try {
+					const result = await this.webClient.conversations.replies({
+						channel: channelId,
+						ts: threadTs,
+						limit: 100,
+					});
+					return (result.messages || []).map((message) => {
+						const typed = message as typeof message & {
+							bot_id?: string;
+							bot_profile?: { name?: string };
+							username?: string;
+							thread_ts?: string;
+						};
+						return {
+							ts: String(typed.ts || ""),
+							threadTs: typed.thread_ts,
+							text: typed.text || "",
+							author: typed.user
+								? this.users.get(typed.user)?.displayName || this.users.get(typed.user)?.userName || typed.user
+								: typed.bot_profile?.name || typed.username || "Bot",
+							isBot: Boolean(typed.bot_id),
+						};
+					});
+				} catch (error) {
+					const errorCode = slackErrorCode(error);
+					if (!isSlackHistoryPermissionError(errorCode)) throw error;
+					this.slackThreadHistoryUnavailable = true;
+					log.logWarning(`Slack thread history unavailable (${errorCode}); using outbound Bee reply cache`);
+					return this.handoffReplyCache.replies(channelId, threadTs);
+				}
 			},
 		});
 		const server = createHandoffServer(controller);
 		const host = handoffConfig.host || "0.0.0.0";
 		const port = handoffConfig.port || 8080;
 		server.listen(port, host, () => log.logInfo(`bee-slack handoff listening on http://${host}:${port}`));
+	}
+
+	private botDisplayName(): string {
+		if (!this.botUserId) return "Bee";
+		const bot = this.users.get(this.botUserId);
+		return bot?.displayName || bot?.userName || "Bee";
 	}
 
 	private setupEventHandlers(): void {
@@ -343,6 +368,17 @@ export class SlackGateway {
 			cursor = result.response_metadata?.next_cursor;
 		} while (cursor);
 	}
+}
+
+function slackErrorCode(error: unknown): string | undefined {
+	if (!error || typeof error !== "object" || !("data" in error)) return undefined;
+	const data = error.data;
+	if (!data || typeof data !== "object" || !("error" in data)) return undefined;
+	return typeof data.error === "string" ? data.error : undefined;
+}
+
+function isSlackHistoryPermissionError(errorCode: string | undefined): boolean {
+	return errorCode === "missing_scope" || errorCode === "no_permission" || errorCode === "not_allowed_token_type";
 }
 
 export async function startGatewayFromEnv(configPath?: string): Promise<void> {

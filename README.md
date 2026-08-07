@@ -33,7 +33,10 @@ compare against other frontends.
 
 The optional handoff HTTP server lets a trusted internal frontend create a
 public Slack thread, dispatch the same question to an allowlisted Bee worker,
-return the Slack permalink immediately, and read the thread replies. The
+return the Slack permalink immediately, and read the thread replies. When the
+Slack app has no channel-history scope, the endpoint falls back to the
+outbound Bee replies observed by this gateway; the permalink remains the
+complete shared conversation. The
 handoff route fixes both channel and worker server-side. Keep the Service
 cluster-internal and restrict ingress to the trusted frontend namespace. POST
 requests require Grafana's authenticated `X-Grafana-User` data-proxy header;

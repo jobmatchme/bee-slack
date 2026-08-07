@@ -2,10 +2,16 @@ import type { ArtifactRef, BlobStore, TransportOutputTarget, TransportSink } fro
 import type { WebClient } from "@slack/web-api";
 import { createReadStream } from "fs";
 
+export interface SlackSinkObserver {
+	posted(target: TransportOutputTarget, ref: string, text: string): void;
+	updated(target: TransportOutputTarget, ref: string, text: string): void;
+}
+
 export class SlackSink implements TransportSink<string> {
 	constructor(
 		private webClient: WebClient,
 		private blobStore: BlobStore,
+		private observer?: SlackSinkObserver,
 	) {}
 
 	async postMessage(target: TransportOutputTarget, text: string): Promise<string> {
@@ -18,7 +24,9 @@ export class SlackSink implements TransportSink<string> {
 			text,
 			thread_ts: target.threadId,
 		});
-		return result.ts as string;
+		const ref = result.ts as string;
+		this.observer?.posted(target, ref, text);
+		return ref;
 	}
 
 	async updateMessage(target: TransportOutputTarget, ref: string, text: string): Promise<void> {
@@ -31,6 +39,7 @@ export class SlackSink implements TransportSink<string> {
 			ts: ref,
 			text,
 		});
+		this.observer?.updated(target, ref, text);
 	}
 
 	async publishArtifact(target: TransportOutputTarget, artifact: ArtifactRef): Promise<void> {
