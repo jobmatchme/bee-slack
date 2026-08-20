@@ -49,6 +49,7 @@ export class SlackSink implements TransportSink<string> {
 		private blobStore: BlobStore,
 		private observer?: SlackSinkObserver,
 	) {}
+	private readonly taskDetailsSent = new Map<string, Set<string>>();
 
 	async postMessage(target: TransportOutputTarget, text: string): Promise<string> {
 		if (!target.channelId) {
@@ -111,6 +112,8 @@ export class SlackSink implements TransportSink<string> {
 	async updateStream(target: TransportOutputTarget, ref: string, action: ActionUpdate): Promise<void> {
 		if (!target.channelId) throw new Error("Missing Slack channel id");
 
+		const sentTaskIds = this.taskDetailsSent.get(ref) ?? new Set<string>();
+		const details = action.details === undefined || sentTaskIds.has(action.id) ? undefined : action.details;
 		await this.webClient.chat.appendStream({
 			channel: target.channelId,
 			ts: ref,
@@ -119,11 +122,15 @@ export class SlackSink implements TransportSink<string> {
 					type: "task_update",
 					id: action.id,
 					title: truncateSlackTaskText(action.title),
-					...(action.details === undefined ? {} : { details: truncateSlackTaskText(action.details) }),
+					...(details === undefined ? {} : { details: truncateSlackTaskText(details) }),
 					status: action.status,
 				},
 			],
 		});
+		if (details !== undefined) {
+			sentTaskIds.add(action.id);
+			this.taskDetailsSent.set(ref, sentTaskIds);
+		}
 	}
 
 	async stopStream(target: TransportOutputTarget, ref: string, result: TransportStreamResult): Promise<void> {
@@ -138,10 +145,14 @@ export class SlackSink implements TransportSink<string> {
 		};
 
 		try {
-			await this.webClient.chat.stopStream(payload);
-		} catch {
-			// One explicit retry keeps final-answer delivery resilient while remaining bounded.
-			await this.webClient.chat.stopStream(payload);
+			try {
+				await this.webClient.chat.stopStream(payload);
+			} catch {
+				// One explicit retry keeps final-answer delivery resilient while remaining bounded.
+				await this.webClient.chat.stopStream(payload);
+			}
+		} finally {
+			this.taskDetailsSent.delete(ref);
 		}
 	}
 

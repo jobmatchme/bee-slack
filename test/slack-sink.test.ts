@@ -84,6 +84,7 @@ describe("SlackSink native streaming", () => {
 		await sink.updateStream(target, "stream-1", {
 			id: "tool-call-1",
 			title: "Datei lesen",
+			details: longDetails,
 			status: "complete",
 		});
 		await sink.updateStream(target, "stream-1", {
