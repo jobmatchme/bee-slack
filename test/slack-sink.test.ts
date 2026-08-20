@@ -135,7 +135,7 @@ describe("SlackSink native streaming", () => {
 		expect(chat.stopStream).toHaveBeenCalledWith({
 			channel: "C123",
 			ts: "stream-1",
-			markdown_text: markdown,
+			chunks: [{ type: "markdown_text", text: markdown }],
 		});
 	});
 

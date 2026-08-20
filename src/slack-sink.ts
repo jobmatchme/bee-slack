@@ -131,7 +131,10 @@ export class SlackSink implements TransportSink<string> {
 		const payload = {
 			channel: target.channelId,
 			ts: ref,
-			markdown_text: truncateSlackMarkdown(result.text),
+			// The stream starts in chunk mode for header/task updates, so final text
+			// must use the same mode. Top-level markdown_text is rejected by Slack
+			// with streaming_mode_mismatch after chunk-based starts.
+			chunks: [{ type: "markdown_text" as const, text: truncateSlackMarkdown(result.text) }],
 		};
 
 		try {
