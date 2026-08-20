@@ -1,4 +1,4 @@
-import { buildConversationId, buildSessionKey } from "@jobmatchme/bee-gate";
+import { buildConversationId, buildSessionKey, type TransportStreamingPreference } from "@jobmatchme/bee-gate";
 import type { ResolvedSlackRoute, SlackGatewayContext, SlackInboundMessage, SlackRouteConfig } from "./types.js";
 
 function matchesRoute(route: SlackRouteConfig, message: SlackInboundMessage): boolean {
@@ -46,5 +46,23 @@ export function resolveRoute(
 			buildConversationId(["slack", context.teamId, message.channelId, sessionBase]),
 		),
 		threadTs: threadId,
+	};
+}
+
+export function resolveStreamingPreference(
+	route: SlackRouteConfig,
+	message: SlackInboundMessage,
+	context: SlackGatewayContext,
+): TransportStreamingPreference | undefined {
+	if (message.type !== "mention" || route.streaming?.enabled !== true) return undefined;
+
+	return {
+		enabled: true,
+		routeId: route.id,
+		presentation: route.streaming.taskDisplayMode || "timeline",
+		context: {
+			recipientUserId: message.userId,
+			recipientTeamId: message.teamId || context.teamId,
+		},
 	};
 }

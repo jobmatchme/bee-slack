@@ -1,6 +1,42 @@
-import type { ArtifactRef, BlobStore, TransportOutputTarget, TransportSink } from "@jobmatchme/bee-gate";
+import type {
+	ActionUpdate,
+	ArtifactRef,
+	BlobStore,
+	TransportOutputTarget,
+	TransportSink,
+	TransportStreamResult,
+	TransportStreamStart,
+} from "@jobmatchme/bee-gate";
 import type { WebClient } from "@slack/web-api";
 import { createReadStream } from "fs";
+
+export const SLACK_STREAM_HEADER = "Ich bearbeite jetzt deine Anfrage...";
+export const SLACK_TASK_TEXT_LIMIT = 256;
+export const SLACK_MARKDOWN_LIMIT = 12_000;
+export const SLACK_MARKDOWN_TRUNCATION_SUFFIX = "\n\n_[Antwort auf 12.000 Zeichen gekürzt]_";
+
+function truncateCodePoints(text: string, limit: number, suffix: string): string {
+	const codePoints = Array.from(text);
+	if (codePoints.length <= limit) return text;
+	const suffixCodePoints = Array.from(suffix);
+	return `${codePoints.slice(0, Math.max(0, limit - suffixCodePoints.length)).join("")}${suffix}`;
+}
+
+export function truncateSlackTaskText(text: string): string {
+	return truncateCodePoints(text, SLACK_TASK_TEXT_LIMIT, "…");
+}
+
+export function truncateSlackMarkdown(text: string): string {
+	return truncateCodePoints(text, SLACK_MARKDOWN_LIMIT, SLACK_MARKDOWN_TRUNCATION_SUFFIX);
+}
+
+function requiredContextString(start: TransportStreamStart, key: string): string {
+	const value = start.context?.[key];
+	if (typeof value !== "string" || value.length === 0) {
+		throw new Error(`Missing Slack stream context ${key}`);
+	}
+	return value;
+}
 
 export interface SlackSinkObserver {
 	posted(target: TransportOutputTarget, ref: string, text: string): void;
@@ -40,6 +76,70 @@ export class SlackSink implements TransportSink<string> {
 			text,
 		});
 		this.observer?.updated(target, ref, text);
+	}
+
+	prepareStreamText(text: string): string {
+		return truncateSlackMarkdown(text);
+	}
+
+	async startStream(target: TransportOutputTarget, start: TransportStreamStart): Promise<string> {
+		if (!target.channelId) throw new Error("Missing Slack channel id");
+		if (!target.threadId) throw new Error("Missing Slack stream thread timestamp");
+
+		const headerChunk = {
+			type: "blocks",
+			blocks: [
+				{
+					type: "header",
+					text: { type: "plain_text", text: SLACK_STREAM_HEADER },
+				},
+			],
+		};
+		const result = await this.webClient.chat.startStream({
+			channel: target.channelId,
+			thread_ts: target.threadId,
+			recipient_user_id: requiredContextString(start, "recipientUserId"),
+			recipient_team_id: requiredContextString(start, "recipientTeamId"),
+			task_display_mode: start.presentation || "timeline",
+			// Slack supports block chunks although the current SDK's chunk union omits them.
+			chunks: [headerChunk] as never,
+		});
+		if (!result.ts) throw new Error("Slack chat.startStream did not return a message timestamp");
+		return result.ts;
+	}
+
+	async updateStream(target: TransportOutputTarget, ref: string, action: ActionUpdate): Promise<void> {
+		if (!target.channelId) throw new Error("Missing Slack channel id");
+
+		await this.webClient.chat.appendStream({
+			channel: target.channelId,
+			ts: ref,
+			chunks: [
+				{
+					type: "task_update",
+					id: action.id,
+					title: truncateSlackTaskText(action.title),
+					...(action.details === undefined ? {} : { details: truncateSlackTaskText(action.details) }),
+					status: action.status,
+				},
+			],
+		});
+	}
+
+	async stopStream(target: TransportOutputTarget, ref: string, result: TransportStreamResult): Promise<void> {
+		if (!target.channelId) throw new Error("Missing Slack channel id");
+		const payload = {
+			channel: target.channelId,
+			ts: ref,
+			markdown_text: truncateSlackMarkdown(result.text),
+		};
+
+		try {
+			await this.webClient.chat.stopStream(payload);
+		} catch {
+			// One explicit retry keeps final-answer delivery resilient while remaining bounded.
+			await this.webClient.chat.stopStream(payload);
+		}
 	}
 
 	async publishArtifact(target: TransportOutputTarget, artifact: ArtifactRef): Promise<void> {

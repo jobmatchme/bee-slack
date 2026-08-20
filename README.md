@@ -49,6 +49,40 @@ POST /api/handoffs
 GET  /api/handoffs/:routeId/:threadTs/replies
 ```
 
+## Route-opt-in native streaming
+
+A normal channel mention route can opt into Slack native streaming. The stream
+starts in the mention's thread with the header
+`Ich bearbeite jetzt deine Anfrage...`, renders transport-neutral Bee action
+updates as Slack task cards, and stops with the complete assistant markdown.
+Routes without `streaming.enabled: true` retain the existing
+`chat.postMessage`/`chat.update` delivery.
+
+```json
+{
+  "id": "mention-pilot",
+  "match": { "channelIds": ["C0123456789"] },
+  "streaming": {
+    "enabled": true,
+    "taskDisplayMode": "timeline"
+  },
+  "worker": { "subject": "fabee.agent.pi.default" },
+  "session": { "strategy": "thread", "prefix": "bee-pilot" }
+}
+```
+
+`taskDisplayMode` accepts `timeline`, `plan`, or `dense` and defaults to
+`timeline`. Streaming is deliberately limited to interactive app mentions;
+DMs, scheduled runs, and authenticated handoffs remain on legacy delivery even
+if their selected route contains this option. Final markdown is passed through
+unchanged up to Slack's 12,000-character limit and visibly truncated above it.
+Task titles and details are capped conservatively for Slack chunk limits.
+
+Open stream state is process-local and is not recovered after a pod restart.
+Slack API failures are surfaced to Bee Gate, which owns the per-run fallback
+from streaming to legacy/degraded delivery. Generated artifacts remain separate
+`files.uploadV2` uploads after the final response.
+
 ## Local development
 
 For local manual testing, copy `local.config.example.json` to

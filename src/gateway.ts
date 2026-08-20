@@ -15,7 +15,7 @@ import { loadConfig } from "./config.js";
 import { createHandoffServer, SlackHandoffController } from "./handoff.js";
 import { HandoffReplyCache } from "./handoff-reply-cache.js";
 import * as log from "./log.js";
-import { resolveRoute } from "./router.js";
+import { resolveRoute, resolveStreamingPreference } from "./router.js";
 import { SlackSink } from "./slack-sink.js";
 import type { ResolvedSlackRoute, SlackFile, SlackGatewayConfig, SlackInboundMessage } from "./types.js";
 
@@ -144,7 +144,7 @@ export class SlackGateway {
 	}
 
 	private setupEventHandlers(): void {
-		this.socketClient.on("app_mention", async ({ event, ack }) => {
+		this.socketClient.on("app_mention", async ({ event, ack, body }) => {
 			await ack();
 			const e = event as {
 				text: string;
@@ -164,6 +164,7 @@ export class SlackGateway {
 				threadTs: e.thread_ts,
 				ts: e.ts,
 				userId: e.user,
+				teamId: (event as typeof e & { team?: string }).team || (body as { team_id?: string }).team_id,
 				userName: this.users.get(e.user)?.userName,
 				displayName: this.users.get(e.user)?.displayName,
 				text: e.text.replace(/<@[A-Z0-9]+>/gi, "").trim(),
@@ -278,6 +279,11 @@ export class SlackGateway {
 				text: message.text,
 			},
 			attachments,
+			streaming: resolveStreamingPreference(resolved.route, message, {
+				botUserId: this.botUserId,
+				teamId: this.teamId,
+				teamName: this.teamName || undefined,
+			}),
 			output,
 		};
 	}

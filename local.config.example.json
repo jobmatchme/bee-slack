@@ -27,6 +27,10 @@
 			"worker": {
 				"subject": "bee.agent.test"
 			},
+			"streaming": {
+				"enabled": true,
+				"taskDisplayMode": "timeline"
+			},
 			"session": {
 				"strategy": "thread",
 				"prefix": "bee"
