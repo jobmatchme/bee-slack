@@ -19,3 +19,15 @@ config:
       session:
         strategy: thread
         prefix: bee
+    - id: mention-pilot
+      match:
+        channelIds:
+          - C0123456789
+      streaming:
+        enabled: true
+        taskDisplayMode: timeline
+      worker:
+        subject: bee.agent.test
+      session:
+        strategy: thread
+        prefix: bee-pilot

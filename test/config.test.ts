@@ -78,4 +78,44 @@ describe("loadConfig", () => {
 			worker: { subject: "fabee.agent.pi.default" },
 		});
 	});
+
+	it("accepts route-opt-in streaming modes", () => {
+		const path = writeConfig({
+			appToken: "xapp-123",
+			botToken: "xoxb-123",
+			nats: { servers: "nats://127.0.0.1:4222" },
+			routes: [
+				{
+					id: "pilot",
+					match: { channelIds: ["C123"] },
+					worker: { subject: "bee.agent.pilot" },
+					streaming: { enabled: true, taskDisplayMode: "dense" },
+				},
+			],
+		});
+
+		expect(loadConfig(path).routes[0]?.streaming).toEqual({ enabled: true, taskDisplayMode: "dense" });
+	});
+
+	it.each([
+		[{ enabled: "yes" }, "streaming.enabled must be a boolean"],
+		[{ enabled: true, taskDisplayMode: "cards" }, "streaming.taskDisplayMode must be timeline, plan or dense"],
+		[null, "streaming must be an object"],
+	])("rejects invalid route streaming config %#", (streaming, expectedError) => {
+		const path = writeConfig({
+			appToken: "xapp-123",
+			botToken: "xoxb-123",
+			nats: { servers: "nats://127.0.0.1:4222" },
+			routes: [
+				{
+					id: "pilot",
+					match: { channelIds: ["C123"] },
+					worker: { subject: "bee.agent.pilot" },
+					streaming,
+				},
+			],
+		});
+
+		expect(() => loadConfig(path)).toThrow(expectedError);
+	});
 });

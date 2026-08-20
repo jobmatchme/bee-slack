@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveRoute } from "../src/router.js";
+import { resolveRoute, resolveStreamingPreference } from "../src/router.js";
 import type { SlackInboundMessage, SlackRouteConfig } from "../src/types.js";
 
 const baseMessage: SlackInboundMessage = {
@@ -37,6 +37,49 @@ describe("resolveRoute", () => {
 			sessionId: "ops_gateway:slack:T123:C123:1711111111_000100",
 			threadTs: "1711111111.000100",
 		});
+	});
+
+	it("opts configured mentions into native streaming with recipient context", () => {
+		const route: SlackRouteConfig = {
+			id: "pilot",
+			match: { channelIds: ["C123"] },
+			worker: { subject: "bee.agent.pilot" },
+			streaming: { enabled: true },
+		};
+		const context = { teamId: "T123", botUserId: "B123" };
+
+		expect(resolveStreamingPreference(route, baseMessage, context)).toEqual({
+			enabled: true,
+			routeId: "pilot",
+			presentation: "timeline",
+			context: {
+				recipientUserId: "U123",
+				recipientTeamId: "T123",
+			},
+		});
+		route.streaming = { enabled: true, taskDisplayMode: "plan" };
+		expect(resolveStreamingPreference(route, baseMessage, context)?.presentation).toBe("plan");
+		expect(resolveStreamingPreference(route, { ...baseMessage, teamId: "T-CONNECT" }, context)?.context).toEqual({
+			recipientUserId: "U123",
+			recipientTeamId: "T-CONNECT",
+		});
+	});
+
+	it("keeps disabled routes and DMs on legacy delivery", () => {
+		const route: SlackRouteConfig = {
+			id: "legacy",
+			match: { dm: true },
+			worker: { subject: "bee.agent.legacy" },
+			streaming: { enabled: true, taskDisplayMode: "dense" },
+		};
+		const context = { teamId: "T123", botUserId: "B123" };
+
+		expect(
+			resolveStreamingPreference({ ...route, streaming: { enabled: false } }, baseMessage, context),
+		).toBeUndefined();
+		expect(
+			resolveStreamingPreference(route, { ...baseMessage, type: "dm", channelId: "D123" }, context),
+		).toBeUndefined();
 	});
 
 	it("uses channel sessions for DMs", () => {

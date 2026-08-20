@@ -22,6 +22,22 @@ export function loadConfig(configPath?: string): SlackGatewayConfig {
 	if (!Array.isArray(config.routes) || config.routes.length === 0) {
 		throw new Error(`Missing routes in ${fullPath}`);
 	}
+	const taskDisplayModes = new Set(["timeline", "plan", "dense"]);
+	for (const route of config.routes) {
+		if (route.streaming === undefined) continue;
+		if (!route.streaming || typeof route.streaming !== "object" || Array.isArray(route.streaming)) {
+			throw new Error(`Route ${route.id || "<unknown>"} streaming must be an object in ${fullPath}`);
+		}
+		if (typeof route.streaming.enabled !== "boolean") {
+			throw new Error(`Route ${route.id || "<unknown>"} streaming.enabled must be a boolean in ${fullPath}`);
+		}
+		if (route.streaming.taskDisplayMode !== undefined && !taskDisplayModes.has(route.streaming.taskDisplayMode)) {
+			throw new Error(
+				`Route ${route.id || "<unknown>"} streaming.taskDisplayMode must be timeline, plan or dense in ${fullPath}`,
+			);
+		}
+	}
+
 	if (config.handoff?.enabled) {
 		if (!Array.isArray(config.handoff.routes) || config.handoff.routes.length === 0) {
 			throw new Error(`handoff.routes must be a non-empty array in ${fullPath}`);

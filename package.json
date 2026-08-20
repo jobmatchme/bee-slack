@@ -1,6 +1,6 @@
 {
 	"name": "@jobmatchme/bee-slack",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "Slack adapter for Bee Gate and the Bee Dance protocol",
 	"type": "module",
 	"bin": {
@@ -48,7 +48,7 @@
 		"prepublishOnly": "npm run clean && npm run check"
 	},
 	"dependencies": {
-		"@jobmatchme/bee-gate": "0.1.8",
+		"@jobmatchme/bee-gate": "0.1.9",
 		"@slack/socket-mode": "^2.0.0",
 		"@slack/web-api": "^7.11.0",
 		"chalk": "^5.6.2"

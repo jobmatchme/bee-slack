@@ -11,12 +11,17 @@ export interface SlackSessionConfig {
 	strategy?: "channel" | "thread";
 	prefix?: string;
 }
+export interface SlackRouteStreamingConfig {
+	enabled: boolean;
+	taskDisplayMode?: "timeline" | "plan" | "dense";
+}
 
 export interface SlackRouteConfig {
 	id: string;
 	match: SlackRouteMatch;
 	worker: BeeWorkerTargetConfig;
 	session?: SlackSessionConfig;
+	streaming?: SlackRouteStreamingConfig;
 }
 
 export interface SlackGatewayConfig {
@@ -101,6 +106,8 @@ export interface SlackInboundMessage {
 	threadTs?: string;
 	ts: string;
 	userId: string;
+	/** Recipient workspace from the inbound event, relevant for Slack Connect channels. */
+	teamId?: string;
 	userName?: string;
 	displayName?: string;
 	text: string;
