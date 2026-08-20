@@ -84,6 +84,7 @@ describe("SlackSink native streaming", () => {
 		await sink.updateStream(target, "stream-1", {
 			id: "tool-call-1",
 			title: "Datei lesen",
+			details: longDetails,
 			status: "complete",
 		});
 		await sink.updateStream(target, "stream-1", {
@@ -135,7 +136,7 @@ describe("SlackSink native streaming", () => {
 		expect(chat.stopStream).toHaveBeenCalledWith({
 			channel: "C123",
 			ts: "stream-1",
-			markdown_text: markdown,
+			chunks: [{ type: "markdown_text", text: markdown }],
 		});
 	});
 
