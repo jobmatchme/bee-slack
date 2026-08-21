@@ -11,9 +11,9 @@ import type { WebClient } from "@slack/web-api";
 import { createReadStream } from "fs";
 
 export const SLACK_STREAM_HEADER = "Ich bearbeite jetzt deine Anfrage...";
-export const SLACK_PLAN_ACTIVE_TITLE = "Biene Willy arbeitet 🐝";
-export const SLACK_PLAN_COMPLETE_TITLE = "Biene Willy ist fertig 🍯";
-export const SLACK_PLAN_ERROR_TITLE = "Biene Willy braucht Hilfe 🐝";
+export const SLACK_PLAN_ACTIVE_TITLE = "Bee Willy arbeitet 🐝";
+export const SLACK_PLAN_COMPLETE_TITLE = "Bee Willy ist fertig 🍯";
+export const SLACK_PLAN_ERROR_TITLE = "Bee Willy braucht Hilfe 🐝";
 export const SLACK_RUN_TASK_ID = "bee-run";
 export const SLACK_RUN_TASK_TITLE = "Anfrage bearbeiten";
 export const SLACK_TASK_TEXT_LIMIT = 256;
