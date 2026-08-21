@@ -60,7 +60,7 @@ describe("SlackSink native streaming", () => {
 		});
 	});
 
-	it("keeps plan mode active for the whole run and completes it with the final answer", async () => {
+	it("keeps plan mode active without a redundant header and completes it with the final answer", async () => {
 		const { chat, sink } = fixture();
 		const planStart = { ...start, presentation: "plan" };
 
@@ -69,7 +69,6 @@ describe("SlackSink native streaming", () => {
 			expect.objectContaining({
 				task_display_mode: "plan",
 				chunks: [
-					expect.objectContaining({ type: "blocks" }),
 					{ type: "plan_update", title: SLACK_PLAN_ACTIVE_TITLE },
 					{
 						type: "task_update",

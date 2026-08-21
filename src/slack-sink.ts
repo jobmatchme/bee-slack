@@ -102,7 +102,7 @@ export class SlackSink implements TransportSink<string> {
 				},
 			],
 		};
-		const planChunks =
+		const chunks =
 			start.presentation === "plan"
 				? [
 						{ type: "plan_update", title: SLACK_PLAN_ACTIVE_TITLE },
@@ -113,7 +113,7 @@ export class SlackSink implements TransportSink<string> {
 							status: "in_progress",
 						},
 					]
-				: [];
+				: [headerChunk];
 		const result = await this.webClient.chat.startStream({
 			channel: target.channelId,
 			thread_ts: target.threadId,
@@ -121,7 +121,7 @@ export class SlackSink implements TransportSink<string> {
 			recipient_team_id: requiredContextString(start, "recipientTeamId"),
 			task_display_mode: start.presentation || "timeline",
 			// Slack supports block chunks although the current SDK's chunk union omits them.
-			chunks: [headerChunk, ...planChunks] as never,
+			chunks: chunks as never,
 		});
 		if (!result.ts) throw new Error("Slack chat.startStream did not return a message timestamp");
 		if (start.presentation === "plan") this.planStreams.add(result.ts);
