@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	SLACK_MARKDOWN_LIMIT,
 	SLACK_MARKDOWN_TRUNCATION_SUFFIX,
+	SLACK_PLAN_ACTIVE_TITLE,
+	SLACK_PLAN_COMPLETE_TITLE,
+	SLACK_RUN_TASK_ID,
+	SLACK_RUN_TASK_TITLE,
 	SLACK_STREAM_HEADER,
 	SLACK_TASK_TEXT_LIMIT,
 	SlackSink,
@@ -54,6 +58,56 @@ describe("SlackSink native streaming", () => {
 				},
 			],
 		});
+	});
+
+	it("keeps plan mode active for the whole run and completes it with the final answer", async () => {
+		const { chat, sink } = fixture();
+		const planStart = { ...start, presentation: "plan" };
+
+		const ref = await sink.startStream(target, planStart);
+		expect(chat.startStream).toHaveBeenCalledWith(
+			expect.objectContaining({
+				task_display_mode: "plan",
+				chunks: [
+					expect.objectContaining({ type: "blocks" }),
+					{ type: "plan_update", title: SLACK_PLAN_ACTIVE_TITLE },
+					{
+						type: "task_update",
+						id: SLACK_RUN_TASK_ID,
+						title: SLACK_RUN_TASK_TITLE,
+						status: "in_progress",
+					},
+				],
+			}),
+		);
+
+		await sink.stopStream(target, ref, { text: "Fertig", outcome: "complete" });
+		expect(chat.stopStream).toHaveBeenCalledWith({
+			channel: "C123",
+			ts: ref,
+			chunks: [
+				{
+					type: "task_update",
+					id: SLACK_RUN_TASK_ID,
+					title: SLACK_RUN_TASK_TITLE,
+					status: "complete",
+				},
+				{ type: "plan_update", title: SLACK_PLAN_COMPLETE_TITLE },
+				{ type: "markdown_text", text: "Fertig" },
+			],
+		});
+	});
+
+	it("marks the overall plan task as failed when the run fails", async () => {
+		const { chat, sink } = fixture();
+		const ref = await sink.startStream(target, { ...start, presentation: "plan" });
+
+		await sink.stopStream(target, ref, { text: "Nicht abgeschlossen", outcome: "error" });
+		expect(chat.stopStream).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chunks: expect.arrayContaining([expect.objectContaining({ id: SLACK_RUN_TASK_ID, status: "error" })]),
+			}),
+		);
 	});
 
 	it("requires a root thread, recipient context, and Slack stream timestamp", async () => {
