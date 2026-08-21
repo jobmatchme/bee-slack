@@ -4,7 +4,7 @@ agent:
 
 image:
   repository: ghcr.io/jobmatchme/bee-slack
-  tag: "0.1.14"
+  tag: "0.1.15"
   pullPolicy: IfNotPresent
   pullSecretName: ""
 
