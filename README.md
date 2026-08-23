@@ -83,6 +83,12 @@ Slack API failures are surfaced to Bee Gate, which owns the per-run fallback
 from streaming to legacy/degraded delivery. Generated artifacts remain separate
 `files.uploadV2` uploads after the final response.
 
+## OpenTelemetry
+
+The gateway emits a `slack.turn` span and injects W3C `traceparent`, `tracestate`, and `baggage` into Bee turn telemetry hints. Configure `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`), and standard `OTEL_RESOURCE_ATTRIBUTES` as needed. Export stays disabled when no OTLP endpoint is configured; `OTEL_SDK_DISABLED=true` disables it explicitly.
+
+Message contents, user details, attachments, and Slack payloads are not recorded as span attributes.
+
 ## Local development
 
 For local manual testing, copy `local.config.example.json` to
