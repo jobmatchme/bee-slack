@@ -10,6 +10,8 @@ image:
 
 secretName: ""
 
+extraEnv: []
+
 workspace:
   enabled: true
   mountPath: /workspace

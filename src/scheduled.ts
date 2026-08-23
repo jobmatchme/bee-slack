@@ -16,6 +16,7 @@ import { join, resolve } from "path";
 import { loadConfig } from "./config.js";
 import * as log from "./log.js";
 import { SlackSink } from "./slack-sink.js";
+import { withTracedTurn } from "./telemetry.js";
 import type { SlackGatewayConfig } from "./types.js";
 
 export interface SlackScheduledRunConfig {
@@ -241,9 +242,15 @@ async function streamScheduledTurn(
 	};
 
 	try {
-		await workerClient.streamTurn(input.worker, request, async (event) => {
-			await handleScheduledEvent(sink, input.output, event, state);
-		});
+		await withTracedTurn(
+			"slack.scheduled_turn",
+			{ "bee.session.id": input.sessionId, "bee.transport": "slack" },
+			async (telemetry) => {
+				await workerClient.streamTurn(input.worker, { ...request, telemetry }, async (event) => {
+					await handleScheduledEvent(sink, input.output, event, state);
+				});
+			},
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		await sink.postMessage(input.output, `_Scheduled gateway error: ${message}_`);

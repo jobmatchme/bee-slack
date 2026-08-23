@@ -72,6 +72,9 @@ spec:
                   value: {{ include "bee-slack.configFilePath" $root | quote }}
                 - name: BEE_SLACK_SCHEDULED_RUN_CONFIG
                   value: /scheduled/job.json
+                {{- with $root.Values.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
               securityContext:
                 runAsNonRoot: true
                 allowPrivilegeEscalation: false
