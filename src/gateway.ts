@@ -17,7 +17,7 @@ import { HandoffReplyCache } from "./handoff-reply-cache.js";
 import * as log from "./log.js";
 import { resolveRoute, resolveStreamingPreference } from "./router.js";
 import { SlackSink } from "./slack-sink.js";
-import { dispatchTracedTurn, type TelemetryCarrier } from "./telemetry.js";
+import { dispatchTracedTurn } from "./telemetry.js";
 import type { ResolvedSlackRoute, SlackFile, SlackGatewayConfig, SlackInboundMessage } from "./types.js";
 
 interface SlackUser {
@@ -241,7 +241,7 @@ export class SlackGateway {
 			const attachments = await this.downloadAttachments(resolved, message);
 			const input = this.buildResolvedTurn(message, resolved, attachments, outputTarget);
 			dispatchTracedTurn({ "bee.session.id": input.sessionId, "bee.transport": "slack" }, (telemetry) => {
-				engine.dispatch({ ...input, telemetry } as BeeResolvedTurn & { telemetry: TelemetryCarrier });
+				engine.dispatch({ ...input, telemetry });
 			});
 		} catch (error) {
 			const messageText = error instanceof Error ? error.message : String(error);

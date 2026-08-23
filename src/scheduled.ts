@@ -2,7 +2,6 @@ import {
 	type ArtifactRef,
 	type BeeResolvedTurn,
 	type BeeRunEvent,
-	type BeeTurnRequest,
 	type BeeWorkerClient,
 	buildConversationId,
 	buildSessionKey,
@@ -247,13 +246,9 @@ async function streamScheduledTurn(
 			"slack.scheduled_turn",
 			{ "bee.session.id": input.sessionId, "bee.transport": "slack" },
 			async (telemetry) => {
-				await workerClient.streamTurn(
-					input.worker,
-					{ ...request, telemetry } as BeeTurnRequest & { telemetry: Record<string, string | undefined> },
-					async (event) => {
-						await handleScheduledEvent(sink, input.output, event, state);
-					},
-				);
+				await workerClient.streamTurn(input.worker, { ...request, telemetry }, async (event) => {
+					await handleScheduledEvent(sink, input.output, event, state);
+				});
 			},
 		);
 	} catch (error) {
