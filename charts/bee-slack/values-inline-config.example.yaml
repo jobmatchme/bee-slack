@@ -26,6 +26,10 @@ config:
       streaming:
         enabled: true
         taskDisplayMode: timeline
+      threadContext:
+        enabled: true
+        maxMessages: 20
+        maxChars: 12000
       worker:
         subject: bee.agent.test
       session:

@@ -16,12 +16,19 @@ export interface SlackRouteStreamingConfig {
 	taskDisplayMode?: "timeline" | "plan" | "dense";
 }
 
+export interface SlackThreadContextConfig {
+	enabled: boolean;
+	maxMessages?: number;
+	maxChars?: number;
+}
+
 export interface SlackRouteConfig {
 	id: string;
 	match: SlackRouteMatch;
 	worker: BeeWorkerTargetConfig;
 	session?: SlackSessionConfig;
 	streaming?: SlackRouteStreamingConfig;
+	threadContext?: SlackThreadContextConfig;
 }
 
 export interface SlackGatewayConfig {

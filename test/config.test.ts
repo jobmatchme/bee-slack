@@ -97,6 +97,53 @@ describe("loadConfig", () => {
 		expect(loadConfig(path).routes[0]?.streaming).toEqual({ enabled: true, taskDisplayMode: "dense" });
 	});
 
+	it("accepts bounded route-opt-in thread context", () => {
+		const path = writeConfig({
+			appToken: "xapp-123",
+			botToken: "xoxb-123",
+			nats: { servers: "nats://127.0.0.1:4222" },
+			routes: [
+				{
+					id: "product-feedback",
+					match: { channelIds: ["C123"] },
+					worker: { subject: "bee.agent.product-feedback" },
+					threadContext: { enabled: true, maxMessages: 20, maxChars: 12_000 },
+				},
+			],
+		});
+
+		expect(loadConfig(path).routes[0]?.threadContext).toEqual({
+			enabled: true,
+			maxMessages: 20,
+			maxChars: 12_000,
+		});
+	});
+
+	it.each([
+		[{ enabled: "yes" }, "threadContext.enabled must be a boolean"],
+		[{ enabled: true, maxMessages: 0 }, "threadContext.maxMessages must be an integer between 1 and 50"],
+		[{ enabled: true, maxMessages: 51 }, "threadContext.maxMessages must be an integer between 1 and 50"],
+		[{ enabled: true, maxChars: 999 }, "threadContext.maxChars must be an integer between 1000 and 30000"],
+		[{ enabled: true, maxChars: 30_001 }, "threadContext.maxChars must be an integer between 1000 and 30000"],
+		[null, "threadContext must be an object"],
+	])("rejects invalid route thread context config %#", (threadContext, expectedError) => {
+		const path = writeConfig({
+			appToken: "xapp-123",
+			botToken: "xoxb-123",
+			nats: { servers: "nats://127.0.0.1:4222" },
+			routes: [
+				{
+					id: "product-feedback",
+					match: { channelIds: ["C123"] },
+					worker: { subject: "bee.agent.product-feedback" },
+					threadContext,
+				},
+			],
+		});
+
+		expect(() => loadConfig(path)).toThrow(expectedError);
+	});
+
 	it.each([
 		[{ enabled: "yes" }, "streaming.enabled must be a boolean"],
 		[{ enabled: true, taskDisplayMode: "cards" }, "streaming.taskDisplayMode must be timeline, plan or dense"],
