@@ -18,6 +18,7 @@ import * as log from "./log.js";
 import { resolveRoute, resolveStreamingPreference } from "./router.js";
 import { SlackSink } from "./slack-sink.js";
 import { dispatchTracedTurn } from "./telemetry.js";
+import { formatSlackThreadContext, type SlackThreadContextMessage } from "./thread-context.js";
 import type { ResolvedSlackRoute, SlackFile, SlackGatewayConfig, SlackInboundMessage } from "./types.js";
 
 interface SlackUser {
@@ -239,7 +240,8 @@ export class SlackGateway {
 			}
 
 			const attachments = await this.downloadAttachments(resolved, message);
-			const input = this.buildResolvedTurn(message, resolved, attachments, outputTarget);
+			const threadContext = await this.loadThreadContext(resolved, message);
+			const input = this.buildResolvedTurn(message, resolved, attachments, outputTarget, threadContext);
 			dispatchTracedTurn({ "bee.session.id": input.sessionId, "bee.transport": "slack" }, (telemetry) => {
 				engine.dispatch({ ...input, telemetry });
 			});
@@ -261,6 +263,7 @@ export class SlackGateway {
 		resolved: ResolvedSlackRoute,
 		attachments: AttachmentRef[],
 		output: TransportOutputTarget,
+		threadContext?: string,
 	): BeeResolvedTurn {
 		if (!this.teamId || !this.botUserId) {
 			throw new Error("Missing Slack gateway identity");
@@ -280,7 +283,7 @@ export class SlackGateway {
 				displayName: message.displayName,
 			},
 			message: {
-				text: message.text,
+				text: threadContext ? `${threadContext}\n\nCurrent Slack request:\n${message.text}` : message.text,
 			},
 			attachments,
 			streaming: resolveStreamingPreference(resolved.route, message, {
@@ -290,6 +293,42 @@ export class SlackGateway {
 			}),
 			output,
 		};
+	}
+
+	private async loadThreadContext(
+		resolved: ResolvedSlackRoute,
+		message: SlackInboundMessage,
+	): Promise<string | undefined> {
+		const config = resolved.route.threadContext;
+		if (message.type !== "mention" || !message.threadTs || config?.enabled !== true) return undefined;
+
+		try {
+			const result = await this.webClient.conversations.replies({
+				channel: message.channelId,
+				ts: message.threadTs,
+				limit: 100,
+			});
+			const messages = (result.messages || []).map((threadMessage) => {
+				const typed = threadMessage as typeof threadMessage & {
+					bot_id?: string;
+					bot_profile?: { name?: string };
+					username?: string;
+				};
+				return {
+					ts: String(typed.ts || "unknown"),
+					text: typed.text || "",
+					author: typed.user
+						? this.users.get(typed.user)?.displayName || this.users.get(typed.user)?.userName || typed.user
+						: typed.bot_profile?.name || typed.username || typed.bot_id || "Bot",
+				} satisfies SlackThreadContextMessage;
+			});
+			return formatSlackThreadContext(messages, message.ts, config);
+		} catch (error) {
+			const errorCode = slackErrorCode(error);
+			const detail = errorCode || (error instanceof Error ? error.message : String(error));
+			log.logWarning(`Slack thread context unavailable for ${message.channelId}/${message.threadTs}: ${detail}`);
+			return undefined;
+		}
 	}
 
 	private buildOutputTarget(message: SlackInboundMessage, resolved: ResolvedSlackRoute): TransportOutputTarget {

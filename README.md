@@ -83,6 +83,39 @@ Slack API failures are surfaced to Bee Gate, which owns the per-run fallback
 from streaming to legacy/degraded delivery. Generated artifacts remain separate
 `files.uploadV2` uploads after the final response.
 
+## Route-opt-in Slack thread context
+
+A normal channel mention route can opt into loading the current Slack thread
+before dispatching the turn. The gateway calls `conversations.replies` only
+after the channel route matched, excludes the current mention from the
+snapshot, and passes the remaining messages to the worker as explicitly
+untrusted same-channel context. DMs and mentions without a `thread_ts` do not
+trigger a history read.
+
+```json
+{
+  "id": "product-feedback",
+  "match": { "channelIds": ["C0123456789"] },
+  "threadContext": {
+    "enabled": true,
+    "maxMessages": 20,
+    "maxChars": 12000
+  },
+  "worker": { "subject": "bee.agent.product-feedback" }
+}
+```
+
+Defaults are 20 messages and 12,000 characters. Configuration validation caps
+the feature at 50 messages and 30,000 characters, while each individual
+message is capped at 4,000 characters. The thread parent is retained and the
+newest replies are preferred when the budget is exceeded. A Slack API failure
+is logged and degrades to the current mention without blocking the turn.
+
+The Slack app needs `channels:history` for public channels and
+`groups:history` for private channels, and it must be a member of the routed
+channel. Keep this feature route-specific; it does not parse arbitrary Slack
+permalinks or expose Slack credentials to the worker.
+
 ## OpenTelemetry
 
 The gateway emits a `slack.turn` span and injects W3C `traceparent`, `tracestate`, and `baggage` into Bee turn telemetry hints. Configure `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`), and standard `OTEL_RESOURCE_ATTRIBUTES` as needed. Export stays disabled when no OTLP endpoint is configured; `OTEL_SDK_DISABLED=true` disables it explicitly.
